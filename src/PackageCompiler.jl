@@ -12,6 +12,8 @@ using TOML
 
 export create_sysimage, create_app, create_library
 
+pkgcompiler_artifacts_dict = Artifacts.load_artifacts_toml(Artifacts.find_artifacts_toml(Base.find_package("PackageCompiler")))
+
 include("juliaconfig.jl")
 include("../ext/TerminalSpinners.jl")
 
@@ -117,6 +119,33 @@ end
 ##############
 # Misc utils #
 ##############
+function _find_artifact_for_platform(info::Dict, p)
+    common_keys = intersect(keys(info), keys(p.tags))
+    # if artifact information and platform tags donot have anything in common return false
+    isempty(common_keys) && return false
+    # It will never reach the point where `common_keys` donot exist in the dictionaries. 
+    return get.(Ref(info), common_keys, nothing) == get.(Ref(p.tags), common_keys, nothing)
+end
+
+# Downloads the artifact and returns the hash path
+function get_artifact_hash_path(artifact::String, p)
+    @info "Downloading Artifact $artifact"
+    artifacts_info = get(pkgcompiler_artifacts_dict, artifact, nothing)
+    artifact_info_idx = findfirst(info -> _find_artifact_for_platform(info, p), artifacts_info)
+    isnothing(artifact_info_idx) && throw("Cannot find artifact for given platform from the dict")
+    artifact = artifacts_info[artifact_info_idx]
+    tree_hash  = get(artifact, "git-tree-sha1", nothing) |> Base.SHA1
+    download   = get(artifact, "download", nothing)
+    !isnothing(download) && begin
+        url = get(download[1], "url", nothing)
+        sha256 = get(download[1], "sha256", nothing)
+    end
+    val = Pkg.Artifacts.download_artifact(tree_hash, url, sha256)
+    (!isa(val, Bool) || !val) && throw("This machine lacks relevant permissions. $name can't be downloaded.")
+    @info "artifact downloaded!"
+    depotpath = get(Base.DEPOT_PATH, 1, nothing)
+    return joinpath(depotpath, "artifacts", "$tree_hash")
+end 
 
 macro monitor_oom(ex)
     quote
@@ -146,7 +175,9 @@ function get_compiler_cmd(; cplusplus::Bool=false)
     cc = get(ENV, "JULIA_CC", nothing)
     path = nothing
     @static if Sys.iswindows()
-        path = joinpath(LazyArtifacts.artifact"mingw-w64", (Int==Int64 ? "mingw64" : "mingw32"), "bin", cplusplus ? "g++.exe" : "gcc.exe")
+        p = Artifacts.HostPlatform()
+        mingw_64_path = get_artifact_hash_path("mingw-w64", p)
+        path = joinpath(mingw_64_path, (Int==Int64 ? "mingw64" : "mingw32"), "bin", cplusplus ? "g++.exe" : "gcc.exe")
         compiler_cmd = `$path`
     end
     if cc !== nothing
