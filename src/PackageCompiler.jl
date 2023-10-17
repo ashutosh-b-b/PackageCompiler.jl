@@ -177,6 +177,8 @@ function get_compiler_cmd(; cplusplus::Bool=false)
     @static if Sys.iswindows()
         p = Artifacts.HostPlatform()
         mingw_64_path = get_artifact_hash_path("mingw-w64", p)
+        @info "path: " mingw_64_path
+        readdir(joinpath(mingw_64_path, (Int==Int64 ? "mingw64" : "mingw32"), "x86_64-w64-mingw32", "include")) |> println
         path = joinpath(mingw_64_path, (Int==Int64 ? "mingw64" : "mingw32"), "bin", cplusplus ? "g++.exe" : "gcc.exe")
         compiler_cmd = `$path`
     end
