@@ -147,6 +147,21 @@ function get_artifact_hash_path(artifact::String, p)
     return joinpath(depotpath, "artifacts", "$tree_hash")
 end 
 
+# 
+function _copy_files_to_dest(mingw_path)
+    src_dir = joinpath(mingw_path, "x86_64-w64-mingw32", "include")
+    dest_dir = joinpath(mingw_path, "lib", "gcc", "x86_64-w64-mingw32", "8.1.0", "include")
+    src_files = readdir(src_dir)
+    dest_files = Set(readdir(dest_dir))
+    @info "Copying..."
+    for file in src_files
+        if !(file in dest_files)
+            cp(joinpath(src_dir, file), joinpath(dest_dir, file))
+        end
+    end
+    @info "Files copied!"
+end
+
 macro monitor_oom(ex)
     quote
         lowest_free_mem = Sys.free_memory()
@@ -179,6 +194,7 @@ function get_compiler_cmd(; cplusplus::Bool=false)
         mingw_64_path = get_artifact_hash_path("mingw-w64", p)
         @info "path: " mingw_64_path
         readdir(joinpath(mingw_64_path, (Int==Int64 ? "mingw64" : "mingw32"), "x86_64-w64-mingw32", "include")) |> println
+        _copy_files_to_dest(joinpath(mingw_64_path, (Int==Int64 ? "mingw64" : "mingw32")))
         path = joinpath(mingw_64_path, (Int==Int64 ? "mingw64" : "mingw32"), "bin", cplusplus ? "g++.exe" : "gcc.exe")
         compiler_cmd = `$path`
     end
