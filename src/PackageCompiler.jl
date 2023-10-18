@@ -119,33 +119,33 @@ end
 ##############
 # Misc utils #
 ##############
-function _find_artifact_for_platform(info::Dict, p)
-    common_keys = intersect(keys(info), keys(p.tags))
-    # if artifact information and platform tags donot have anything in common return false
-    isempty(common_keys) && return false
-    # It will never reach the point where `common_keys` donot exist in the dictionaries. 
-    return get.(Ref(info), common_keys, nothing) == get.(Ref(p.tags), common_keys, nothing)
-end
+# function _find_artifact_for_platform(info::Dict, p)
+#     common_keys = intersect(keys(info), keys(p.tags))
+#     # if artifact information and platform tags donot have anything in common return false
+#     isempty(common_keys) && return false
+#     # It will never reach the point where `common_keys` donot exist in the dictionaries. 
+#     return get.(Ref(info), common_keys, nothing) == get.(Ref(p.tags), common_keys, nothing)
+# end
 
-# Downloads the artifact and returns the hash path
-function get_artifact_hash_path(artifact::String, p)
-    @info "Downloading Artifact $artifact"
-    artifacts_info = get(pkgcompiler_artifacts_dict, artifact, nothing)
-    artifact_info_idx = findfirst(info -> _find_artifact_for_platform(info, p), artifacts_info)
-    isnothing(artifact_info_idx) && throw("Cannot find artifact for given platform from the dict")
-    artifact = artifacts_info[artifact_info_idx]
-    tree_hash  = get(artifact, "git-tree-sha1", nothing) |> Base.SHA1
-    download   = get(artifact, "download", nothing)
-    !isnothing(download) && begin
-        url = get(download[1], "url", nothing)
-        sha256 = get(download[1], "sha256", nothing)
-    end
-    val = Pkg.Artifacts.download_artifact(tree_hash, url, sha256)
-    (!isa(val, Bool) || !val) && throw("This machine lacks relevant permissions. $name can't be downloaded.")
-    @info "artifact downloaded!"
-    depotpath = get(Base.DEPOT_PATH, 1, nothing)
-    return joinpath(depotpath, "artifacts", "$tree_hash")
-end 
+# # Downloads the artifact and returns the hash path
+# function get_artifact_hash_path(artifact::String, p)
+#     @info "Downloading Artifact $artifact"
+#     artifacts_info = get(pkgcompiler_artifacts_dict, artifact, nothing)
+#     artifact_info_idx = findfirst(info -> _find_artifact_for_platform(info, p), artifacts_info)
+#     isnothing(artifact_info_idx) && throw("Cannot find artifact for given platform from the dict")
+#     artifact = artifacts_info[artifact_info_idx]
+#     tree_hash  = get(artifact, "git-tree-sha1", nothing) |> Base.SHA1
+#     download   = get(artifact, "download", nothing)
+#     !isnothing(download) && begin
+#         url = get(download[1], "url", nothing)
+#         sha256 = get(download[1], "sha256", nothing)
+#     end
+#     val = Pkg.Artifacts.download_artifact(tree_hash, url, sha256)
+#     (!isa(val, Bool) || !val) && throw("This machine lacks relevant permissions. $name can't be downloaded.")
+#     @info "artifact downloaded!"
+#     depotpath = get(Base.DEPOT_PATH, 1, nothing)
+#     return joinpath(depotpath, "artifacts", "$tree_hash")
+# end 
 
 # 
 function _copy_files_to_dest(mingw_path)
@@ -190,10 +190,10 @@ function get_compiler_cmd(; cplusplus::Bool=false)
     cc = get(ENV, "JULIA_CC", nothing)
     path = nothing
     @static if Sys.iswindows()
-        p = Artifacts.HostPlatform()
-        mingw_64_path = get_artifact_hash_path("mingw-w64", p)
-        @info "path: " mingw_64_path
-        readdir(joinpath(mingw_64_path, (Int==Int64 ? "mingw64" : "mingw32"), "x86_64-w64-mingw32", "include")) |> println
+        # p = Artifacts.HostPlatform()
+        mingw_64_path = LazyArtifacts.artifact"mingw-w64"
+        # @info "path: " mingw_64_path
+        # readdir(joinpath(mingw_64_path, (Int==Int64 ? "mingw64" : "mingw32"), "x86_64-w64-mingw32", "include")) |> println
         _copy_files_to_dest(joinpath(mingw_64_path, (Int==Int64 ? "mingw64" : "mingw32")))
         path = joinpath(mingw_64_path, (Int==Int64 ? "mingw64" : "mingw32"), "bin", cplusplus ? "g++.exe" : "gcc.exe")
         compiler_cmd = `$path`
@@ -710,7 +710,7 @@ function compile_c_init_julia(julia_init_c_file::String, sysimage_name::String)
     flags = Base.shell_split(cflags())
 
     o_init_file = splitext(julia_init_c_file)[1] * ".o"
-    cmd = `-c -O2 -DJULIAC_PROGRAM_LIBNAME=$(repr(sysimage_name)) $TLS_SYNTAX $(bitflag()) $flags $(march()) -o $o_init_file $julia_init_c_file -v`
+    cmd = `-c -O2 -DJULIAC_PROGRAM_LIBNAME=$(repr(sysimage_name)) $TLS_SYNTAX $(bitflag()) $flags $(march()) -o $o_init_file $julia_init_c_file`
     run_compiler(cmd)
     return o_init_file
 end
