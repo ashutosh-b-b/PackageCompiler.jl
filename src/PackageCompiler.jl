@@ -189,12 +189,14 @@ const WARNED_CPP_COMPILER = Ref{Bool}(false)
 function get_compiler_cmd(; cplusplus::Bool=false)
     cc = get(ENV, "JULIA_CC", nothing)
     path = nothing
+    include_dir = nothing
     @static if Sys.iswindows()
         # p = Artifacts.HostPlatform()
         mingw_64_path = LazyArtifacts.artifact"mingw-w64"
         # @info "path: " mingw_64_path
         # readdir(joinpath(mingw_64_path, (Int==Int64 ? "mingw64" : "mingw32"), "x86_64-w64-mingw32", "include")) |> println
-        _copy_files_to_dest(joinpath(mingw_64_path, (Int==Int64 ? "mingw64" : "mingw32")))
+        # _copy_files_to_dest(joinpath(mingw_64_path, (Int==Int64 ? "mingw64" : "mingw32")))
+        include_dir = joinpath(mingw_64_path, (Int==Int64 ? "mingw64" : "mingw32"), "x86_64-w64-mingw32", "include")
         path = joinpath(mingw_64_path, (Int==Int64 ? "mingw64" : "mingw32"), "bin", cplusplus ? "g++.exe" : "gcc.exe")
         compiler_cmd = `$path`
     end
@@ -233,12 +235,18 @@ function get_compiler_cmd(; cplusplus::Bool=false)
     if path !== nothing
         compiler_cmd = addenv(compiler_cmd, "PATH" => string(ENV["PATH"], ";", dirname(path)))
     end
-    return compiler_cmd
+    return compiler_cmd, include_dir
 end
 
 function run_compiler(cmd::Cmd; cplusplus::Bool=false)
-    compiler_cmd = get_compiler_cmd(; cplusplus)
-    full_cmd = `$compiler_cmd $cmd`
+    compiler_cmd, include_dir = get_compiler_cmd(; cplusplus)
+    
+    full_cmd = if !isnothing(include_dir)
+        `$compiler_cmd $cmd`
+    else
+        include_cmd = `-I $include_dir`
+        `$compiler_cmd $cmd $include_cmd`
+    end
     @debug "running $full_cmd"
     run(full_cmd)
 end
@@ -710,7 +718,7 @@ function compile_c_init_julia(julia_init_c_file::String, sysimage_name::String)
     flags = Base.shell_split(cflags())
 
     o_init_file = splitext(julia_init_c_file)[1] * ".o"
-    cmd = `-c -O2 -DJULIAC_PROGRAM_LIBNAME=$(repr(sysimage_name)) $TLS_SYNTAX $(bitflag()) $flags $(march()) -o $o_init_file $julia_init_c_file`
+    cmd = `-c -O2 -DJULIAC_PROGRAM_LIBNAME=$(repr(sysimage_name)) $TLS_SYNTAX $(bitflag()) $flags $(march()) -o $o_init_file $julia_init_c_file -v`
     run_compiler(cmd)
     return o_init_file
 end
