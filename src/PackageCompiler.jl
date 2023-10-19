@@ -247,7 +247,6 @@ function run_compiler(cmd::Cmd; cplusplus::Bool=false)
     else
         `$compiler_cmd $cmd`
     end
-    @info full_cmd
     @debug "running $full_cmd"
     run(full_cmd)
 end
