@@ -209,7 +209,7 @@ function run_compiler(cmd::Cmd; cplusplus::Bool=false)
         `$compiler_cmd $cmd`
     else
         include_cmd = `-I $include_dir`
-        `$compiler_cmd $cmd $include_cmd`
+        `$compiler_cmd $include_cmd $cmd `
     end
     @info "RUNNING : " full_cmd
     @debug "running $full_cmd"
