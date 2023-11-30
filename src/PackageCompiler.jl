@@ -205,7 +205,7 @@ function run_compiler(cmd::Cmd; cplusplus::Bool=false)
     compiler_cmd, include_dir = get_compiler_cmd(; cplusplus)
     # If `include_dir` is nothing, i.e. we donot have mingw-64 running the gcc, donot include it in the command
     # If `include_dir` is not nothing, we include the header path with `-I $include_dir`
-    full_cmd = if !isnothing(include_dir)
+    full_cmd = if isnothing(include_dir)
         `$compiler_cmd $cmd`
     else
         include_cmd = `-I $include_dir`
