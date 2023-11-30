@@ -205,7 +205,13 @@ function run_compiler(cmd::Cmd; cplusplus::Bool=false)
     compiler_cmd, include_dir = get_compiler_cmd(; cplusplus)
     # If `include_dir` is nothing, i.e. we donot have mingw-64 running the gcc, donot include it in the command
     # If `include_dir` is not nothing, we include the header path with `-I $include_dir`
-    full_cmd = isnothing(include_dir) ? `$compiler_cmd $cmd` : `$compiler_cmd $cmd -I $include_dir`
+    full_cmd = if !isnothing(include_dir)
+        `$compiler_cmd $cmd`
+    else
+        include_cmd = `-I $include_dir`
+        `$compiler_cmd $cmd $include_cmd`
+    end
+    @info "RUNNING : " full_cmd
     @debug "running $full_cmd"
     run(full_cmd)
 end
@@ -699,7 +705,7 @@ function compile_c_init_julia(julia_init_c_file::String, sysimage_name::String, 
     flags = Base.shell_split(cflags())
 
     o_init_file = splitext(julia_init_c_file)[1] * ".o"
-    cmd = `-c -O2 -I$include_dir -DJULIAC_PROGRAM_LIBNAME=$(repr(sysimage_name)) $TLS_SYNTAX $(bitflag()) $flags $(march()) -o $o_init_file $julia_init_c_file`
+    cmd = `-c -O2 -I$include_dir -DJULIAC_PROGRAM_LIBNAME=$(repr(sysimage_name)) $TLS_SYNTAX $(bitflag()) $flags $(march()) -o $o_init_file $julia_init_c_file -v`
     run_compiler(cmd)
     return o_init_file
 end
