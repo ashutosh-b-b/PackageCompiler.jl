@@ -152,8 +152,15 @@ const WARNED_CPP_COMPILER = Ref{Bool}(false)
 function get_compiler_cmd(; cplusplus::Bool=false)
     cc = get(ENV, "JULIA_CC", nothing)
     path = nothing
+    include_dir = nothing
     @static if Sys.iswindows()
-        path = joinpath(LazyArtifacts.artifact"mingw-w64", (Int==Int64 ? "mingw64" : "mingw32"), "bin", cplusplus ? "g++.exe" : "gcc.exe")
+        # mingw-64 artifact path 
+        mingw_64_path = LazyArtifacts.artifact"mingw-w64"
+        # set `include_dir` to mingw-64 headers path 
+        include_dir = joinpath(mingw_64_path, (Int==Int64 ? "mingw64" : "mingw32"), "x86_64-w64-mingw32", "include")
+        # mingw_64 `gcc` path 
+        path = joinpath(mingw_64_path, (Int==Int64 ? "mingw64" : "mingw32"), "bin", cplusplus ? "g++.exe" : "gcc.exe")
+
         compiler_cmd = `$path`
     end
     if cc !== nothing
@@ -191,12 +198,14 @@ function get_compiler_cmd(; cplusplus::Bool=false)
     if path !== nothing
         compiler_cmd = addenv(compiler_cmd, "PATH" => string(ENV["PATH"], ";", dirname(path)))
     end
-    return compiler_cmd
+    return compiler_cmd, include_dir
 end
 
 function run_compiler(cmd::Cmd; cplusplus::Bool=false)
-    compiler_cmd = get_compiler_cmd(; cplusplus)
-    full_cmd = `$compiler_cmd $cmd`
+    compiler_cmd, include_dir = get_compiler_cmd(; cplusplus)
+    # If `include_dir` is nothing, i.e. we donot have mingw-64 running the gcc, donot include it in the command
+    # If `include_dir` is not nothing, we include the header path with `-I $include_dir`
+    full_cmd = isnothing(include_dir) ? `$compiler_cmd $cmd` : `$compiler_cmd $cmd -I $include_dir`
     @debug "running $full_cmd"
     run(full_cmd)
 end
